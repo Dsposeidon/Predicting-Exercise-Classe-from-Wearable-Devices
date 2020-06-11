@@ -1,0 +1,143 @@
+---
+title: "MLs"
+author: "Gabre Hughes"
+date: "6/11/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+##Week 4 Assignment: Predicting Exercise Classe from Wearable Devices
+
+##Instructions
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+
+##Review criteria
+
+1) Your submission for the Peer Review portion should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+
+
+1) Apply your machine learning algorithm to the 20 test cases available in the test data above and submit your predictions in appropriate format to the Course Project Prediction Quiz for automated grading.
+
+
+
+###Library Setup
+
+
+```{r}
+library(caret)
+library("randomForest")
+````
+###Gathering Data
+
+```{r}
+
+  download.file(url = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', 
+                destfile = 'train.csv', , quiet = TRUE) 
+
+
+
+  download.file(url = 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', 
+                destfile = 'test.csv', , quiet = TRUE)
+
+
+trainw <- read.csv('train.csv')
+testw <- read.csv('test.csv')
+
+```
+
+##Preprocessing
+
+First look at the data for each column and remove variables unrelated to exercise (column number and time stamps)
+
+
+
+```{r}
+str(trainw)
+```
+
+```{r}
+train <- trainw[, 6:ncol(trainw)]
+```
+Split the data into 70% training and 30% testing set
+
+```{r}
+set.seed(23954)
+inTrain <- createDataPartition(y = train$classe, p = 0.7, list = F)
+training <- train[inTrain, ]
+testing <- train[-inTrain, ]
+```
+Remove the variables with a lot of similarities
+
+
+```{r}
+nzv <- nearZeroVar(train, saveMetrics = T)
+keepFeat <- row.names(nzv[nzv$nzv == FALSE, ])
+training <- training[, keepFeat]
+```
+This is a rather stringent cutoff but there is still >50 features after removal
+
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+dim(training)
+```
+
+##Model
+
+Set up 5-fold cross validation for training
+```{r}
+modCtl <- trainControl(method = 'cv', number = 5)
+
+```
+
+Fit a model with random forests
+
+```{r}
+set.seed(2384)
+modRf <- train(classe ~. , data = training, method = 'rf', trControl = modCtl)
+```
+
+Read the summary of the model built with random forests
+
+```{r}
+predRf <- predict(modRf, newdata = testing)
+confusionMatrix(predRf, testing$classe)$table
+```
+
+
+Predict with the validation set and check the confusion matrix and accuracy
+```{r}
+confusionMatrix(predRf, testing$classe)$overall[1]
+```
+
+###The accuracy is ~99.6% under 5-fold cross validation
+
+Fit a model with gradient boosting method
+
+
+```{r}
+modGbm <- train(classe ~., data = training, method = 'gbm', trControl = modCtl, verbose = F)
+```
+
+Read the summary of the model built with gbm
+
+```{r}
+modGbm$finalModel
+```
+
+
+```{r}
+predRfTest <- predict(modRf, newdata = testw)
+predRfTest
+```
+
+
+```{r}
+predGbmTest <- predict(modGbm, newdata = testw)
+table(predRfTest, predGbmTest)
+```
+
+
+
